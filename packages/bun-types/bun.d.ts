@@ -2428,7 +2428,7 @@ declare module "bun" {
   }
 
   namespace Build {
-    type Architecture = "x64" | "arm64";
+    type Architecture = "x64" | "arm64" | "aarch64";
     type Libc = "glibc" | "musl";
     type SIMD = "baseline" | "modern";
     type CompileTarget =
@@ -2645,6 +2645,25 @@ declare module "bun" {
     features?: string[];
 
     /**
+     * List of package names whose barrel files (re-export index files) should
+     * be optimized. When a named import comes from one of these packages,
+     * only the submodules actually used are parsed — unused re-exports are
+     * skipped entirely.
+     *
+     * This is also enabled automatically for any package with
+     * `"sideEffects": false` in its `package.json`.
+     *
+     * @example
+     * ```ts
+     * await Bun.build({
+     *   entrypoints: ['./app.ts'],
+     *   optimizeImports: ['antd', '@mui/material', 'lodash-es'],
+     * });
+     * ```
+     */
+    optimizeImports?: string[];
+
+    /**
      * - When set to `true`, the returned promise rejects with an AggregateError when a build failure happens.
      * - When set to `false`, returns a {@link BuildOutput} with `{success: false}`
      *
@@ -2781,10 +2800,16 @@ declare module "bun" {
     outdir?: string;
 
     /**
-     * Create a standalone executable
+     * Create a standalone executable or self-contained HTML.
      *
      * When `true`, creates an executable for the current platform.
      * When a target string, creates an executable for that platform.
+     *
+     * When used with `target: "browser"`, produces self-contained HTML files
+     * with all scripts, styles, and assets inlined. All `<script>` tags become
+     * inline `<script>` with bundled code, all `<link rel="stylesheet">` tags
+     * become inline `<style>` tags, and all asset references become `data:` URIs.
+     * All entrypoints must be HTML files. Cannot be used with `splitting`.
      *
      * @example
      * ```ts
@@ -2802,6 +2827,13 @@ declare module "bun" {
      *   entrypoints: ['./app.js'],
      *   compile: 'linux-x64',
      *   outfile: './my-app'
+     * });
+     *
+     * // Produce self-contained HTML
+     * await Bun.build({
+     *   entrypoints: ['./index.html'],
+     *   target: 'browser',
+     *   compile: true,
      * });
      * ```
      */
@@ -4553,6 +4585,20 @@ declare module "bun" {
    * ```
    */
   function generateHeapSnapshot(format: "v8"): string;
+
+  /**
+   * Show precise statistics about memory usage of your application
+   *
+   * Generate a V8 Heap Snapshot as an ArrayBuffer.
+   *
+   * This avoids the overhead of creating a JavaScript string for large heap snapshots.
+   * The ArrayBuffer contains the UTF-8 encoded JSON.
+   * ```ts
+   * const snapshot = Bun.generateHeapSnapshot("v8", "arraybuffer");
+   * await Bun.write("heap.heapsnapshot", snapshot);
+   * ```
+   */
+  function generateHeapSnapshot(format: "v8", encoding: "arraybuffer"): ArrayBuffer;
 
   /**
    * The next time JavaScriptCore is idle, clear unused memory and attempt to reduce the heap size.
